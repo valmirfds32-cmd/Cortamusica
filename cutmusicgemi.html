@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cortador de Áudio Pro - Com Linha de Reprodução</title>
+    <title>Cortador de Áudio Pro - Com Gravador</title>
     <style>
         /* Estilos Gerais e Layout */
         body {
@@ -100,12 +100,20 @@
             width: 100%;
             height: 100%;
             z-index: 2; /* Fica na frente */
-            pointer-events: none; /* Deixa cliques passarem para o canvas de baixo, se necessário, mas aqui controlaremos o clique na div pai */
+            pointer-events: none;
         }
 
         /* Componentes do Cortador */
-        input[type="file"] {
+        .input-zone {
             margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        input[type="file"] {
             color: #e0e0e0;
         }
         
@@ -152,6 +160,17 @@
             color: #666;
             cursor: not-allowed;
         }
+        #btn-record {
+            background-color: #c62828; /* Vermelho para Gravar */
+            border-color: #b71c1c;
+        }
+        #btn-record:hover:not(:disabled) {
+            background-color: #d32f2f;
+        }
+        #btn-record.recording {
+            background-color: #ff8f00; /* Laranja piscando para Gravando */
+            animation: pulse 1.5s infinite;
+        }
         #btn-play {
             background-color: #2e7d32; /* Verde para Play */
         }
@@ -171,6 +190,12 @@
             color: #ffca28; /* Amarelo para alertas */
             font-size: 14px;
         }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -184,9 +209,13 @@
     <main>
         <div class="container">
             <h2 style="margin-top: 0;">Cortador de Áudio MP3 Pro</h2>
-            <p style="color: #aaa; font-size: 14px;">Carregue um arquivo, visualize a onda e corte com precisão visual.</p>
+            <p style="color: #aaa; font-size: 14px;">Carregue um arquivo ou grave direto do microfone, visualize a onda e corte com precisão.</p>
             
-            <input type="file" id="audio-file" accept="audio/mp3, audio/*">
+            <div class="input-zone">
+                <input type="file" id="audio-file" accept="audio/mp3, audio/*">
+                <span style="color: #666;">ou</span>
+                <button id="btn-record">Gravar Áudio</button>
+            </div>
             
             <div class="waveform-relative" id="waveform-container">
                 <canvas id="waveform-static"></canvas>
@@ -225,20 +254,24 @@
     let audioBuffer;
     let sourceNode;
     let isPlaying = false;
-    let startTimePlay = 0; // Quando a reprodução começou no AudioContext
-    let offsetPlay = 0;    // O deslocamento (segundos) dentro da música onde a reprodução começou
-    let animationRequest; // Para cancelar a animação da linha
+    let startTimePlay = 0; 
+    let offsetPlay = 0;    
+    let animationRequest; 
+
+    // Variáveis do Gravador
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
 
     const fileInput = document.getElementById('audio-file');
     const container = document.getElementById('waveform-container');
+    const btnRecord = document.getElementById('btn-record');
     
-    // Canvas Estático (Onda)
     const canvasStatic = document.getElementById('waveform-static');
-    const ctxStatic = canvasStatic.getContext('2d', { alpha: false }); // alpha false para performance
+    const ctxStatic = canvasStatic.getContext('2d', { alpha: false });
 
-    // Canvas Dinâmico (Linha)
     const canvasDynamic = document.getElementById('waveform-dynamic');
-    const ctxDynamic = canvasDynamic.getContext('2d'); // Precisa de alpha para transparência
+    const ctxDynamic = canvasDynamic.getContext('2d');
 
     const startTimeInput = document.getElementById('start-time');
     const endTimeInput = document.getElementById('end-time');
@@ -253,6 +286,24 @@
         return audioContext;
     }
 
+    // Gerencia os dados após carregamento/gravação com sucesso
+    async function processNewAudioBuffer(buffer, labelText) {
+        audioBuffer = buffer;
+        statusDiv.innerText = `${labelText}: ${audioBuffer.duration.toFixed(2)} segundos.`;
+        
+        startTimeInput.value = 0;
+        startTimeInput.max = audioBuffer.duration;
+        endTimeInput.value = audioBuffer.duration.toFixed(2);
+        endTimeInput.max = audioBuffer.duration;
+        
+        startTimeInput.disabled = endTimeInput.disabled = btnPlay.disabled = btnCut.disabled = false;
+        
+        resizeCanvas();
+        drawWaveform(audioBuffer);
+        clearDynamicCanvas();
+    }
+
+    // Evento de Arquivo Carregado
     fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -260,52 +311,92 @@
         statusDiv.innerText = "Decodificando áudio... Aguarde.";
         btnPlay.disabled = btnCut.disabled = true;
 
-        if (isPlaying) stopPlayback(); // Para se estiver tocando
+        if (isPlaying) stopPlayback();
 
         const ctxAudio = getAudioContext();
         const arrayBuffer = await file.arrayBuffer();
         
         try {
-            audioBuffer = await ctxAudio.decodeAudioData(arrayBuffer);
-            statusDiv.innerText = `Áudio carregado: ${audioBuffer.duration.toFixed(2)} segundos.`;
-            
-            startTimeInput.value = 0;
-            startTimeInput.max = audioBuffer.duration;
-            endTimeInput.value = audioBuffer.duration.toFixed(2);
-            endTimeInput.max = audioBuffer.duration;
-            
-            startTimeInput.disabled = endTimeInput.disabled = btnPlay.disabled = btnCut.disabled = false;
-            
-            // Ajusta tamanho dos canvas e desenha onda
-            resizeCanvas();
-            drawWaveform(audioBuffer);
-            clearDynamicCanvas(); // Garante que o dinâmico esteja limpo
-
+            const decodedBuffer = await ctxAudio.decodeAudioData(arrayBuffer);
+            await processNewAudioBuffer(decodedBuffer, "Áudio carregado");
         } catch (error) {
-            statusDiv.innerText = "Erro ao carregar o áudio. Verifique se é um MP3 válido.";
+            statusDiv.innerText = "Erro ao carregar o áudio. Verifique se é um arquivo válido.";
             console.error(error);
         }
     });
 
-    // Função para ajustar o tamanho dos canvas internamente
+    // Lógica do Botão Gravar / Parar Gravação
+    btnRecord.addEventListener('click', async () => {
+        if (!isRecording) {
+            // Iniciar Gravação
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    statusDiv.innerText = "Processando áudio gravado... Aguarde.";
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    const ctxAudio = getAudioContext();
+
+                    try {
+                        const decodedBuffer = await ctxAudio.decodeAudioData(arrayBuffer);
+                        await processNewAudioBuffer(decodedBuffer, "Áudio gravado com sucesso");
+                    } catch (err) {
+                        statusDiv.innerText = "Erro ao decodificar o áudio gravado.";
+                        console.error(err);
+                    }
+
+                    // Fecha as tracks do microfone para desligar a luz de gravação do navegador
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                if (isPlaying) stopPlayback();
+                
+                mediaRecorder.start();
+                isRecording = true;
+                btnRecord.innerText = "Parar Gravação";
+                btnRecord.classList.add('recording');
+                statusDiv.innerText = "Gravando... Fale no seu microfone.";
+                btnPlay.disabled = btnCut.disabled = true;
+
+            } catch (err) {
+                statusDiv.innerText = "Permissão de microfone negada ou não suportada.";
+                console.error(err);
+            }
+        } else {
+            // Parar Gravação
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            btnRecord.innerText = "Gravar Áudio";
+            btnRecord.classList.remove('recording');
+        }
+    });
+
     function resizeCanvas() {
-        // Define o tamanho interno (resolução) igual ao tamanho exibido na tela
         canvasStatic.width = container.clientWidth;
         canvasStatic.height = container.clientHeight;
         canvasDynamic.width = container.clientWidth;
         canvasDynamic.height = container.clientHeight;
     }
 
-    // Garante redimensionamento se a janela mudar
     window.addEventListener('resize', () => {
         if (audioBuffer) {
             resizeCanvas();
             drawWaveform(audioBuffer);
-            if (!isPlaying) clearDynamicCanvas(); // Mantém limpo se parado
+            if (!isPlaying) clearDynamicCanvas();
         }
     });
 
-    // Desenha a forma de onda (estático)
     function drawWaveform(buffer) {
         const width = canvasStatic.width;
         const height = canvasStatic.height;
@@ -313,10 +404,10 @@
         const step = Math.ceil(data.length / width);
         const amp = height / 2;
 
-        ctxStatic.fillStyle = '#111'; // Fundo do canvas estático
+        ctxStatic.fillStyle = '#111';
         ctxStatic.fillRect(0, 0, width, height);
         
-        ctxStatic.strokeStyle = '#555'; // Cor da onda desativada
+        ctxStatic.strokeStyle = '#555';
         ctxStatic.lineWidth = 1;
         ctxStatic.beginPath();
 
@@ -334,47 +425,38 @@
         ctxStatic.stroke();
     }
 
-    // Limpa o canvas dinâmico (remove a linha vermelha)
     function clearDynamicCanvas() {
         ctxDynamic.clearRect(0, 0, canvasDynamic.width, canvasDynamic.height);
     }
 
-    // Desenha a linha vertical de reprodução (vermelha)
     function drawPlaybackLine() {
         if (!isPlaying || !audioBuffer) return;
 
         const ctxAudio = getAudioContext();
-        // Calcula o tempo atual da reprodução: (Tempo atual do contexto - Tempo de início) + Deslocamento inicial
         const currentTime = (ctxAudio.currentTime - startTimePlay) + offsetPlay;
         const duration = audioBuffer.duration;
 
         if (currentTime >= duration || currentTime >= parseFloat(endTimeInput.value)) {
-            // A reprodução acabou ou passou do ponto de corte final
             stopPlayback();
             return;
         }
 
-        // Calcula a posição X (0 a width)
         const x = (currentTime / duration) * canvasDynamic.width;
 
-        // Limpa o frame anterior e desenha a nova linha
         clearDynamicCanvas();
-        ctxDynamic.strokeStyle = '#ff1744'; // Vermelho vivo
+        ctxDynamic.strokeStyle = '#ff1744';
         ctxDynamic.lineWidth = 2;
         ctxDynamic.beginPath();
         ctxDynamic.moveTo(x, 0);
         ctxDynamic.lineTo(x, canvasDynamic.height);
         ctxDynamic.stroke();
 
-        // Solicita o próximo frame de animação
         animationRequest = requestAnimationFrame(drawPlaybackLine);
     }
 
-    // Captura cliques na área visual para definir pontos de corte
     container.addEventListener('click', (e) => {
         if (!audioBuffer) return;
         
-        // Para a reprodução se clicar no gráfico
         if (isPlaying) stopPlayback();
 
         const rect = container.getBoundingClientRect();
@@ -384,7 +466,6 @@
         const start = parseFloat(startTimeInput.value);
         const end = parseFloat(endTimeInput.value);
 
-        // Lógica simples: clica perto do início, ajusta o início. Clica perto do fim, ajusta o fim.
         if (Math.abs(clickedTime - start) < Math.abs(clickedTime - end)) {
             startTimeInput.value = clickedTime.toFixed(2);
         } else {
@@ -392,7 +473,6 @@
         }
     });
 
-    // Função central para parar a reprodução e animação
     function stopPlayback() {
         if (!isPlaying) return;
         
@@ -403,10 +483,9 @@
         isPlaying = false;
         btnPlay.innerText = "Tocar Seleção";
         cancelAnimationFrame(animationRequest);
-        clearDynamicCanvas(); // Remove a linha
+        clearDynamicCanvas();
     }
 
-    // Botão Tocar
     btnPlay.addEventListener('click', () => {
         if (isPlaying) {
             stopPlayback();
@@ -423,33 +502,26 @@
             return;
         }
 
-        // Configura o nó de áudio
         sourceNode = ctxAudio.createBufferSource();
         sourceNode.buffer = audioBuffer;
         sourceNode.connect(ctxAudio.destination);
         
-        // Registra tempos para a animação
-        offsetPlay = start; // Começa a tocar desse segundo
-        startTimePlay = ctxAudio.currentTime; // Tempo atual do "relógio" do AudioContext
+        offsetPlay = start;
+        startTimePlay = ctxAudio.currentTime;
         
-        // Inicia reprodução: (quandocomeçar, ondedentrodaMúsica, porQuantoTempo)
         sourceNode.start(0, start, durationToPlay);
         
         isPlaying = true;
         btnPlay.innerText = "Parar";
         statusDiv.innerText = `Tocando seleção: ${start.toFixed(2)}s até ${end.toFixed(2)}s.`;
 
-        // Evento nativo de quando o áudio para
         sourceNode.onended = () => {
-            // Só para se o estado ainda for isPlaying (evita bug ao clicar em 'Parar' manualmente)
             if (isPlaying) stopPlayback();
         };
 
-        // Inicia o loop de animação da linha
         drawPlaybackLine();
     });
 
-    // Botão Cortar e Salvar (sem alterações)
     btnCut.addEventListener('click', () => {
         const start = parseFloat(startTimeInput.value);
         const end = parseFloat(endTimeInput.value);
@@ -484,7 +556,6 @@
         statusDiv.innerText = "Corte realizado e download iniciado (formato WAV).";
     });
 
-    // Conversor WAV (sem alterações)
     function bufferToWav(buffer) {
         const numOfChan = buffer.numberOfChannels,
             length = buffer.length * numOfChan * 2 + 44,
