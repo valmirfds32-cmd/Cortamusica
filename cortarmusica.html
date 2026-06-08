@@ -172,7 +172,42 @@
         .btn-zoom:hover:not(:disabled) {
             background-color: #5c6bc0;
         }
+btn-record {
+            background-color: #c62828; /* Vermelho para Gravar */
+            border-color: #b71c1c;
+        }
+        #btn-record:hover:not(:disabled) {
+            background-color: #d32f2f;
+        }
+        #btn-record.recording {
+            background-color: #ff8f00; /* Laranja piscando para Gravando */
+            animation: pulse 1.5s infinite;
+        }
+        #btn-play {
+            background-color: #2e7d32; /* Verde para Play */
+        }
+        #btn-play:hover:not(:disabled) {
+            background-color: #388e3c;
+        }
+        #btn-cut {
+            background-color: #1565c0; /* Azul para Cortar */
+        }
+        #btn-cut:hover:not(:disabled) {
+            background-color: #1976d2;
+        }
 
+        #status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #ffca28; /* Amarelo para alertas */
+            font-size: 14px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+            }
         #btn-play {
             background-color: #2e7d32;
         }
