@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cortador de Áudio Pro - Gravador Integrado</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1c;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: #111;
+            padding: 10px 20px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+
+        footer {
+            background-color: #111;
+            padding: 15px;
+            text-align: center;
+            margin-top: auto;
+            border-top: 1px solid #333;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .ad-space {
+            background-color: #2a2a2d;
+            color: #888;
+            border: 1px dashed #555;
+            border-radius: 4px;
+            max-width: 728px;
+            height: 90px;
+            margin: 5px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #222;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .waveform-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding: 0 2px;
+        }
+
+        .label-style {
+            font-size: 13px;
+            color: #aaa;
+            font-weight: normal;
+        }
+
+        .waveform-scroll-container {
+            width: 100%;
+            height: 150px;
+            background-color: #111;
+            border-radius: 6px;
+            overflow-x: auto; 
+            overflow-y: hidden;
+            margin-top: 5px;
+            border: 1px solid #333;
+            position: relative;
+        }
+
+        .waveform-relative {
+            position: relative;
+            width: 100%; 
+            height: 100%;
+        }
+
+        #waveform-static {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #waveform-dynamic {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .input-area {
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            color: #e0e0e0;
+        }
+        
+        .controls {
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        input[type="number"] {
+            background-color: #111;
+            border: 1px solid #444;
+            color: #ffca28; 
+            padding: 6px;
+            border-radius: 4px;
+            width: 95px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        button {
+            background-color: #444;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 18px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #555;
+        }
+        button:disabled {
+            color: #666;
+            background-color: #2d2d2d;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+        
+        /* Botão de Gravação do Microfone */
+        #btn-record {
+            background-color: #b71c1c;
+            border-color: #d32f2f;
+            font-weight: bold;
+        }
+        #btn-record:hover:not(:disabled) {
+            background-color: #c62828;
+        }
+        .recording-active {
+            animation: pulse 1.2s infinite;
+            background-color: #d32f2f !important;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .btn-zoom {
+            background-color: #3f51b5;
+            font-weight: bold;
+        }
+        .btn-zoom:hover:not(:disabled) {
+            background-color: #5c6bc0;
+        }
+
+        #btn-play {
+            background-color: #2e7d32;
+        }
+        #btn-play:hover:not(:disabled) {
+            background-color: #388e3c;
+        }
+        #btn-cut {
+            background-color: #1565c0;
+        }
+        #btn-cut:hover:not(:disabled) {
+            background-color: #1976d2;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #ffca28;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="ad-space">
+            <span>Publicidade Superior (728x90)</span>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2 style="margin-top: 0; margin-bottom: 5px;">Cortador de Áudio MP3 Pro</h2>
+            <p style="color: #aaa; font-size: 14px; margin-bottom: 15px; margin-top: 0;">Suba um arquivo ou grave direto do microfone. O trecho na tela define o corte!</p>
+            
+            <div class="input-area">
+                <input type="file" id="audio-file" accept="audio/mp3, audio/*">
+                <button id="btn-record">Gravar via Microfone</button>
+            </div>
+            
+            <div class="waveform-header">
+                <span class="label-style">Arraste a barra para os lados ou use a Escala para ajustar o foco</span>
+                <span class="label-style" id="timer" style="color: #ff1744; font-weight: bold;">00:00.0 / 00:00.0</span>
+            </div>
+            
+            <div class="waveform-scroll-container" id="scroll-wrapper">
+                <div class="waveform-relative" id="waveform-container">
+                    <canvas id="waveform-static"></canvas>
+                    <canvas id="waveform-dynamic"></canvas>
+                </div>
+            </div>
+            
+            <div class="controls" style="margin-top: 10px;">
+                <button id="btn-zoom-out" class="btn-zoom" disabled> Escala [ - Zoom ] </button>
+                <button id="btn-zoom-in" class="btn-zoom" disabled> Escala [ + Zoom ] </button>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <span class="label-style" style="margin-bottom: 3px;">Início Visível (s)</span>
+                    <input type="number" id="start-time" value="0" readonly>
+                </div>
+
+                <div class="control-group">
+                    <span class="label-style" style="margin-bottom: 3px;">Fim Visível (s)</span>
+                    <input type="number" id="end-time" value="0" readonly>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="btn-play" disabled>Tocar o que estou vendo</button>
+                <button id="btn-cut" disabled>Cortar esta Janela</button>
+            </div>
+
+            <div id="status"></div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="ad-space">
+            <span>Publicidade Inferior (728x90)</span>
+        </div>
+        <p style="margin-top: 10px;">&copy; 2026 Cortador Pro Web. Processamento 100% local no navegador.</p>
+    </footer>
+
+<script>
+    let audioContext;
+    let audioBuffer;
+    let sourceNode;
+    let isPlaying = false;
+    let startTimePlay = 0; 
+    let offsetPlay = 0;    
+    let animationRequest; 
+    
+    // Variáveis para o Gravador
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+
+    let currentZoom = 100; 
+    const ZOOM_STEP = 50;  
+    const MAX_ZOOM = 800;  
+    const MIN_ZOOM = 100;  
+
+    const fileInput = document.getElementById('audio-file');
+    const btnRecord = document.getElementById('btn-record');
+    const scrollWrapper = document.getElementById('scroll-wrapper');
+    const container = document.getElementById('waveform-container');
+    const timerDisplay = document.getElementById('timer');
+    
+    const canvasStatic = document.getElementById('waveform-static');
+    const ctxStatic = canvasStatic.getContext('2d', { alpha: false });
+
+    const canvasDynamic = document.getElementById('waveform-dynamic');
+    const ctxDynamic = canvasDynamic.getContext('2d');
+
+    const startTimeInput = document.getElementById('start-time');
+    const endTimeInput = document.getElementById('end-time');
+    const btnPlay = document.getElementById('btn-play');
+    const btnCut = document.getElementById('btn-cut');
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const statusDiv = document.getElementById('status');
+
+    function getAudioContext() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return audioContext;
+    }
+
+    function formatTime(seconds) {
+        if(seconds < 0) seconds = 0;
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const tenths = Math.floor((seconds % 1) * 10);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    }
+
+    function updateTimesByScrollFocus() {
+        if (!audioBuffer) return;
+
+        const totalDuration = audioBuffer.duration;
+        const scrollLeft = scrollWrapper.scrollLeft; 
+        const visibleWidth = scrollWrapper.clientWidth; 
+        const totalWidth = container.clientWidth; 
+
+        let start = (scrollLeft / totalWidth) * totalDuration;
+        let end = ((scrollLeft + visibleWidth) / totalWidth) * totalDuration;
+
+        if (start < 0) start = 0;
+        if (end > totalDuration) end = totalDuration;
+
+        startTimeInput.value = start.toFixed(2);
+        endTimeInput.value = end.toFixed(2);
+
+        timerDisplay.innerText = `${formatTime(start)} / ${formatTime(end)}`;
+    }
+
+    // Função centralizada para processar e carregar o ArrayBuffer de áudio no sistema de ondas
+    async function loadAudioBuffer(arrayBuffer) {
+        statusDiv.innerText = "Decodificando dados de áudio... Aguarde.";
+        btnPlay.disabled = btnCut.disabled = true;
+        btnZoomIn.disabled = btnZoomOut.disabled = true;
+
+        if (isPlaying) stopPlayback();
+
+        const ctxAudio = getAudioContext();
+        try {
+            audioBuffer = await ctxAudio.decodeAudioData(arrayBuffer);
+            statusDiv.innerText = `Áudio carregado com sucesso. Use a barra de rolagem e a escala para focar no trecho.`;
+            
+            btnPlay.disabled = btnCut.disabled = false;
+            btnZoomIn.disabled = btnZoomOut.disabled = false;
+            
+            currentZoom = 100;
+            scrollWrapper.scrollLeft = 0; 
+            applyZoom();
+        } catch (error) {
+            statusDiv.innerText = "Erro ao processar áudio. Verifique se o formato é suportado.";
+            console.error(error);
+        }
+    }
+
+    // Manipulador de Arquivos Carregados manualmente
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const arrayBuffer = await file.arrayBuffer();
+        await loadAudioBuffer(arrayBuffer);
+    });
+
+    // LÓGICA DE GRAVAÇÃO DO MICROFONE
+    btnRecord.addEventListener('click', async () => {
+        if (!isRecording) {
+            // Inicia a gravação
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    // Junta os blocos de áudio gravados em um único arquivo virtual (Blob)
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    
+                    // Alimenta o motor de áudio para gerar a onda visual na tela
+                    await loadAudioBuffer(arrayBuffer);
+                    
+                    // Desliga fisicamente o microfone para preservar privacidade e bateria
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                btnRecord.innerText = "Parar Gravação";
+                btnRecord.classList.add('recording-active');
+                statusDiv.innerText = "Gravando do microfone... Fale agora.";
+                
+                // Desativa os controles enquanto grava para evitar falhas
+                btnPlay.disabled = btnCut.disabled = true;
+                fileInput.disabled = true;
+
+            } catch (err) {
+                statusDiv.innerText = "Erro ao acessar o microfone. Certifique-se de dar permissão.";
+                console.error(err);
+            }
+        } else {
+            // Para a gravação
+            mediaRecorder.stop();
+            isRecording = false;
+            btnRecord.innerText = "Gravar via Microfone";
+            btnRecord.classList.remove('recording-active');
+            fileInput.disabled = false;
+        }
+    });
+
+    scrollWrapper.addEventListener('scroll', () => {
+        updateTimesByScrollFocus();
+        if (isPlaying) stopPlayback(); 
+    });
+
+    function resizeCanvas() {
+        const parentElement = scrollWrapper;
+        const targetWidth = (parentElement.clientWidth * currentZoom) / 100;
+        
+        container.style.width = targetWidth + 'px';
+        canvasStatic.width = targetWidth;
+        canvasStatic.height = container.clientHeight;
+        canvasDynamic.width = targetWidth;
+        canvasDynamic.height = container.clientHeight;
+    }
+
+    function applyZoom() {
+        if (!audioBuffer) return;
+        resizeCanvas();
+        drawWaveform(audioBuffer);
+        clearDynamicCanvas();
+        updateTimesByScrollFocus(); 
+        
+        btnZoomIn.disabled = (currentZoom >= MAX_ZOOM);
+        btnZoomOut.disabled = (currentZoom <= MIN_ZOOM);
+    }
+
+    btnZoomIn.addEventListener('click', () => {
+        if (currentZoom < MAX_ZOOM) {
+            const centerPercent = (scrollWrapper.scrollLeft + scrollWrapper.clientWidth / 2) / container.clientWidth;
+            currentZoom += ZOOM_STEP;
+            applyZoom();
+            scrollWrapper.scrollLeft = (centerPercent * container.clientWidth) - (scrollWrapper.clientWidth / 2);
+        }
+    });
+
+    btnZoomOut.addEventListener('click', () => {
+        if (currentZoom > MIN_ZOOM) {
+            const centerPercent = (scrollWrapper.scrollLeft + scrollWrapper.clientWidth / 2) / container.clientWidth;
+            currentZoom -= ZOOM_STEP;
+            applyZoom();
+            scrollWrapper.scrollLeft = (centerPercent * container.clientWidth) - (scrollWrapper.clientWidth / 2);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (audioBuffer) {
+            applyZoom();
+        }
+    });
+
+    function drawWaveform(buffer) {
+        const width = canvasStatic.width;
+        const height = canvasStatic.height;
+        const data = buffer.getChannelData(0);
+        const step = Math.ceil(data.length / width);
+        const amp = height / 2;
+
+        ctxStatic.fillStyle = '#111'; 
+        ctxStatic.fillRect(0, 0, width, height);
+        
+        ctxStatic.strokeStyle = '#555'; 
+        ctxStatic.lineWidth = 1;
+        ctxStatic.beginPath();
+
+        for (let i = 0; i < width; i++) {
+            let min = 1.0;
+            let max = -1.0;
+            for (let j = 0; j < step; j++) {
+                const datum = data[(i * step) + j];
+                if (datum < min) min = datum;
+                if (datum > max) max = datum;
+            }
+            ctxStatic.moveTo(i, (1 + min) * amp);
+            ctxStatic.lineTo(i, (1 + max) * amp);
+        }
+        ctxStatic.stroke();
+    }
+
+    function clearDynamicCanvas() {
+        ctxDynamic.clearRect(0, 0, canvasDynamic.width, canvasDynamic.height);
+    }
+
+    function drawPlaybackLine() {
+        if (!isPlaying || !audioBuffer) return;
+
+        const ctxAudio = getAudioContext();
+        const currentTime = (ctxAudio.currentTime - startTimePlay) + offsetPlay;
+        const duration = audioBuffer.duration;
+        const endTime = parseFloat(endTimeInput.value);
+
+        if (currentTime >= duration || currentTime >= endTime) {
+            stopPlayback();
+            return;
+        }
+
+        const x = (currentTime / duration) * canvasDynamic.width;
+        clearDynamicCanvas();
+        ctxDynamic.strokeStyle = '#ff1744'; 
+        ctxDynamic.lineWidth = 2;
+        ctxDynamic.beginPath();
+        ctxDynamic.moveTo(x, 0);
+        ctxDynamic.lineTo(x, canvasDynamic.height);
+        ctxDynamic.stroke();
+
+        animationRequest = requestAnimationFrame(drawPlaybackLine);
+    }
+
+    function stopPlayback() {
+        if (!isPlaying) return;
+        
+        if (sourceNode) {
+            sourceNode.stop();
+            sourceNode.disconnect();
+        }
+        isPlaying = false;
+        btnPlay.innerText = "Tocar o que estou vendo";
+        cancelAnimationFrame(animationRequest);
+        clearDynamicCanvas(); 
+        updateTimesByScrollFocus(); 
+    }
+
+    btnPlay.addEventListener('click', () => {
+        if (isPlaying) {
+            stopPlayback();
+            return;
+        }
+
+        const ctxAudio = getAudioContext();
+        const start = parseFloat(startTimeInput.value);
+        const end = parseFloat(endTimeInput.value);
+        const durationToPlay = end - start;
+
+        if (durationToPlay <= 0.05) {
+            statusDiv.innerText = "Dê menos zoom ou mova a barra para ter um trecho válido para tocar.";
+            return;
+        }
+
+        sourceNode = ctxAudio.createBufferSource();
+        sourceNode.buffer = audioBuffer;
+        sourceNode.connect(ctxAudio.destination);
+        
+        offsetPlay = start; 
+        startTimePlay = ctxAudio.currentTime; 
+        
+        sourceNode.start(0, start, durationToPlay);
+        
+        isPlaying = true;
+        btnPlay.innerText = "Parar";
+        statusDiv.innerText = `Tocando o trecho visível na tela...`;
+
+        sourceNode.onended = () => {
+            if (isPlaying) stopPlayback();
+        };
+
+        drawPlaybackLine();
+    });
+
+    btnCut.addEventListener('click', () => {
+        const start = parseFloat(startTimeInput.value);
+        const end = parseFloat(endTimeInput.value);
+        
+        if (start >= end || (end - start) < 0.05) {
+            statusDiv.innerText = "Erro: O trecho visível na tela está curto demais ou inválido.";
+            return;
+        }
+
+        const sampleRate = audioBuffer.sampleRate;
+        const startSample = Math.floor(start * sampleRate);
+        const endSample = Math.floor(end * sampleRate);
+        const durationInSamples = endSample - startSample;
+
+        const ctxAudio = getAudioContext();
+        const cutBuffer = ctxAudio.createBuffer(audioBuffer.numberOfChannels, durationInSamples, sampleRate);
+
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            cutBuffer.getChannelData(channel).set(
+                audioBuffer.getChannelData(channel).subarray(startSample, endSample)
+            );
+        }
+
+        const wavBlob = bufferToWav(cutBuffer);
+        const url = URL.createObjectURL(wavBlob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `corte_tela_${start.toFixed(1)}s_${end.toFixed(1)}s.wav`;
+        a.click();
+        
+        statusDiv.innerText = "Corte baseado na tela gerado com sucesso em formato WAV!";
+    });
+
+    function bufferToWav(buffer) {
+        const numOfChan = buffer.numberOfChannels,
+            length = buffer.length * numOfChan * 2 + 44,
+            bufferArr = new ArrayBuffer(length),
+            view = new DataView(bufferArr),
+            channels = [], sampleRate = buffer.sampleRate;
+        let pos = 0, offset = 0;
+        function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+        function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+        setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+        setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+        setUint32(sampleRate); setUint32(sampleRate * 2 * numOfChan);
+        setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
+        setUint32(length - pos - 4);
+        for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+        while (pos < length) {
+            for (let i = 0; i < numOfChan; i++) {
+                let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                view.setInt16(pos, sample, true); pos += 2;
+            }
+            offset++;
+        }
+        return new Blob([bufferArr], { type: 'audio/wav' });
+    }
+</script>
+
+</body>
+</html>
